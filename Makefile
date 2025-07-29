@@ -141,7 +141,8 @@ UPROGS=\
 	$U/_grind\
 	$U/_wc\
 	$U/_zombie\
-	$U/_pingpong #this line was added for q1 chap 1
+	$U/_pingpong\
+	$U/_primepid
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

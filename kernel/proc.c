@@ -12,7 +12,29 @@ struct proc proc[NPROC];
 
 struct proc *initproc;
 
-int nextpid = 1;
+// int nextpid = 1;
+int nextpid = 2; // Assigning prime pids
+
+// Function to check if a number is prime
+int is_prime(int n) {
+  if (n < 2) return 0;
+  if (n == 2 || n == 3) return 1;
+  if (n % 2 == 0 || n % 3 == 0) return 0;
+
+  for (int i = 5; i * i <= n; i += 6) {
+    if (n % i == 0 || n % (i + 2) == 0) return 0;
+  }
+  return 1;
+}
+
+// Function to find the next prime number greater than n
+int nextPrime(int n) {
+  while (1) {
+    n++;
+    if (is_prime(n)) return n;
+  }
+}
+ 
 struct spinlock pid_lock;
 
 extern void forkret(void);
@@ -97,6 +119,7 @@ allocpid()
   acquire(&pid_lock);
   pid = nextpid;
   nextpid = nextpid + 1;
+  nextpid = nextPrime(nextpid); // Assigning prime pids
   release(&pid_lock);
 
   return pid;
