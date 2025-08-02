@@ -6,6 +6,8 @@
 #include "spinlock.h"
 #include "proc.h"
 
+extern struct proc proc[]; 
+
 uint64
 sys_exit(void)
 {
@@ -91,3 +93,31 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64
+sys_getprocsinfo(void) {
+    uint64 addr;
+    argaddr(0, &addr);
+
+    struct uproc up[NPROC];
+    int count = 0;
+
+    for (int i = 0; i < NPROC; i++) {
+        struct proc *p = &proc[i];
+        acquire(&p->lock);
+        if (p->state != UNUSED) {
+            up[count].pid = p->pid;
+            up[count].state = p->state;
+            up[count].ticks = p->ticks;
+            safestrcpy(up[count].name, p->name, sizeof(p->name));
+            count++;
+        }
+        release(&p->lock);
+    }
+
+    if (copyout(myproc()->pagetable, addr, (char *)up, count * sizeof(struct uproc)) < 0)
+        return -1;
+
+    return count;
+}
+

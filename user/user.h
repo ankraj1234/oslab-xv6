@@ -41,3 +41,13 @@ void *memcpy(void *, const void *, uint);
 // umalloc.c
 void* malloc(uint);
 void free(void*);
+
+// top.c
+struct uproc {
+  int pid;
+  int state;
+  int ticks;
+  char name[16];
+};
+
+int getprocsinfo(struct uproc *);
