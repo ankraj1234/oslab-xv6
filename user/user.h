@@ -51,3 +51,6 @@ struct uproc {
 };
 
 int getprocsinfo(struct uproc *);
+
+int set_priority(int);
+int get_priority(void);

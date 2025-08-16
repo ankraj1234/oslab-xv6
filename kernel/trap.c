@@ -77,8 +77,18 @@ usertrap(void)
     exit(-1);
 
   // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
-    yield();
+  // if(which_dev == 2)
+  //   yield();
+
+  // give up the CPU if this is a timer interrupt based on weighted round robin logic
+  if(which_dev == 2){ // timer interrupt
+    if(p && p->state == RUNNING){
+      p->time_slice--;
+      if(p->time_slice <= 0){
+        yield();  // only preempt if slice finished
+      }
+    }
+  }
 
   usertrapret();
 }

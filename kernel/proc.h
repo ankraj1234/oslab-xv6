@@ -92,7 +92,9 @@ struct proc {
   int xstate;                  // Exit status to be returned to parent's wait
   int pid;                     // Process ID
   int ticks;                   // Number of ticks used by this process
-
+  int priority;                // Priority of a task
+  int time_slice;              // remaining ticks of CPU slice
+  
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
 

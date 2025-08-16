@@ -143,7 +143,8 @@ UPROGS=\
 	$U/_zombie\
 	$U/_pingpong\
 	$U/_primepid\
-	$U/_top
+	$U/_top\
+	$U/_prioritytest
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

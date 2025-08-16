@@ -148,6 +148,8 @@ found:
   p->pid = allocpid();
   p->state = USED;
   p->ticks = 0;
+  p->priority = 10;
+  p->time_slice = p->priority;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -488,6 +490,7 @@ scheduler(void)
         p->state = RUNNING;
         c->proc = p;
         p->ticks++; // Increment the ticks for the process
+        p->time_slice = p->priority; //allow  this process to run for 'priority' ticks
         swtch(&c->context, &p->context);
 
         // Process is done running for now.

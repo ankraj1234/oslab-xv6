@@ -37,3 +37,5 @@ entry("sbrk");
 entry("sleep");
 entry("uptime");
 entry(getprocsinfo);
+entry("set_priority");
+entry("get_priority");

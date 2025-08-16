@@ -121,3 +121,31 @@ sys_getprocsinfo(void) {
     return count;
 }
 
+// sets the priority of process
+uint64
+sys_set_priority(void)
+{
+  int n;
+  argint(0, &n); 
+
+  if(n < 1 || n > 1000)
+    return -1;
+
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  p->priority = n;
+  release(&p->lock);
+
+  return 0;
+}
+
+// gets the priority of process
+uint64
+sys_get_priority(void)
+{
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  int priority = p->priority;
+  release(&p->lock);
+  return priority;
+}
