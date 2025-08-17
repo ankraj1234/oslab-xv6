@@ -116,7 +116,7 @@ main(void)
     printf("PID %d  priority %d  iterations %d\n",
            results[i].pid, results[i].prio, results[i].iterations);
   }
-ot
+
   int sum5=0,c5=0, sum10=0,c10=0, sum20=0,c20=0;
   for (int i = 0; i < got; i++) {
     if (results[i].prio == 5)  { sum5 += results[i].iterations;  c5++; }
