@@ -149,3 +149,78 @@ sys_get_priority(void)
   release(&p->lock);
   return priority;
 }
+
+// sets the tickets of process
+uint64
+sys_set_tickets(void)
+{
+  int a0, a1;
+  
+  // always fetch two integers (even if program passed only one,
+  // the second will just be garbage, so we check validity)
+  argint(0, &a0);
+  argint(1, &a1);
+
+  // Case 1: only one argument used → self set
+  if(a1 == 0){
+    int n = a0;
+    if(n < 1 || n > 1000)
+      return -1;
+
+    struct proc *p = myproc();
+    acquire(&p->lock);
+    p->tickets = n;
+    release(&p->lock);
+    return 0;
+  }
+
+  // Case 2: two arguments → parent sets child
+  int pid = a0;
+  int n   = a1;
+
+  if(n < 1 || n > 1000)
+    return -1;
+
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->pid == pid){
+      p->tickets = n;
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+
+  return -1; // pid not found
+}
+
+// gets the tickets of process
+uint64
+sys_get_tickets(void)
+{
+  struct proc *p = myproc();
+  acquire(&p->lock);
+  int tickets = p->tickets;
+  release(&p->lock);
+  return tickets;
+}
+
+
+uint64
+sys_get_ticks(void)
+{
+  int pid;
+  argint(0, &pid);
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->pid == pid){
+      uint64 t = p->ticks;
+      release(&p->lock);
+      return t;
+    }
+    release(&p->lock);
+  }
+  return -1;
+}

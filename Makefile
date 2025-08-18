@@ -144,7 +144,9 @@ UPROGS=\
 	$U/_pingpong\
 	$U/_primepid\
 	$U/_top\
-	$U/_prioritytest
+	$U/_prioritytest\
+	$U/_scheduletest0\
+	$U/_scheduletest1
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

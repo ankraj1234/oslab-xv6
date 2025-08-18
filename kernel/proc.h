@@ -93,7 +93,8 @@ struct proc {
   int pid;                     // Process ID
   int ticks;                   // Number of ticks used by this process
   int priority;                // Priority of a task
-  int time_slice;              // remaining ticks of CPU slice
+  int time_slice;              // remaining ticks of CPU slice  
+  int tickets;                 // number of lottery tickets assigned to the process
   
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process

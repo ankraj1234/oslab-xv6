@@ -23,3 +23,6 @@
 #define SYS_getprocsinfo 22 
 #define SYS_set_priority  23
 #define SYS_get_priority  24
+#define SYS_set_tickets 25
+#define SYS_get_tickets 26
+#define SYS_get_ticks  27

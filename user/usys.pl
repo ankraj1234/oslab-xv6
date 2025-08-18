@@ -39,3 +39,6 @@ entry("uptime");
 entry(getprocsinfo);
 entry("set_priority");
 entry("get_priority");
+entry("set_tickets");
+entry("get_tickets");
+entry("get_ticks");

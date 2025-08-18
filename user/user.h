@@ -54,3 +54,9 @@ int getprocsinfo(struct uproc *);
 
 int set_priority(int);
 int get_priority(void);
+
+
+int set_tickets(int agr1, ...);
+int get_tickets(void);
+
+int get_ticks(int pid);
