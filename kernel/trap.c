@@ -67,6 +67,13 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 15) {  // Store/write page fault - handle COW
+    uint64 va = r_stval();  // Get faulting virtual address
+    
+    if(va >= p->sz || cowhandler(p->pagetable, va) != 0) {
+      // Invalid access or COW handling failed
+      p->killed = 1;
+    }
   } else {
     printf("usertrap(): unexpected scause 0x%lx pid=%d\n", r_scause(), p->pid);
     printf("            sepc=0x%lx stval=0x%lx\n", r_sepc(), r_stval());

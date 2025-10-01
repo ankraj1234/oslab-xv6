@@ -146,7 +146,8 @@ UPROGS=\
 	$U/_top\
 	$U/_prioritytest\
 	$U/_scheduletest0\
-	$U/_scheduletest1
+	$U/_scheduletest1\
+	$U/_cowtest
 
 fs.img: mkfs/mkfs README $(UPROGS)
 	mkfs/mkfs fs.img README $(UPROGS)

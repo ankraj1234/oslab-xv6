@@ -309,28 +309,66 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 // physical memory.
 // returns 0 on success, -1 on failure.
 // frees any allocated pages on failure.
+// int
+// uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+// {
+//   pte_t *pte;
+//   uint64 pa, i;
+//   uint flags;
+//   char *mem;
+
+//   for(i = 0; i < sz; i += PGSIZE){
+//     if((pte = walk(old, i, 0)) == 0)
+//       panic("uvmcopy: pte should exist");
+//     if((*pte & PTE_V) == 0)
+//       panic("uvmcopy: page not present");
+//     pa = PTE2PA(*pte);
+//     flags = PTE_FLAGS(*pte);
+//     if((mem = kalloc()) == 0)
+//       goto err;
+//     memmove(mem, (char*)pa, PGSIZE);
+//     if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+//       kfree(mem);
+//       goto err;
+//     }
+//   }
+//   return 0;
+
+//  err:
+//   uvmunmap(new, 0, i / PGSIZE, 1);
+//   return -1;
+// }
+
 int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
+    
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    
+    // If page is writable, make it read-only and mark as COW
+    if(flags & PTE_W) {
+      flags &= ~PTE_W;  // Clear write flag
+      flags |= PTE_COW; // Mark as COW (we'll define this)
+      *pte = PA2PTE(pa) | flags; // Update parent's PTE
+    }
+    
+    // Map the same physical page in child's page table
+    if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
+    
+    // Increment reference count for shared page
+    krefpage((void*)pa);
   }
   return 0;
 
@@ -338,6 +376,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }
+
 
 // mark a PTE invalid for user access.
 // used by exec for the user stack guard page.
@@ -366,9 +405,24 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     if(va0 >= MAXVA)
       return -1;
     pte = walk(pagetable, va0, 0);
-    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
-       (*pte & PTE_W) == 0)
+    // if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
+    //    (*pte & PTE_W) == 0)
+    //   return -1;
+    if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0)
       return -1;
+        
+    // Handle COW pages before writing
+    if((*pte & PTE_W) == 0) {
+      if((*pte & PTE_COW) == 0)
+        return -1;  // Not writable and not COW - invalid
+      if(cowhandler(pagetable, va0) != 0)
+        return -1;  // COW handling failed
+      // Re-walk to get the new PTE after COW handling
+      pte = walk(pagetable, va0, 0);
+      if(pte == 0)
+        return -1;
+    }
+
     pa0 = PTE2PA(*pte);
     n = PGSIZE - (dstva - va0);
     if(n > len)
@@ -448,4 +502,52 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+
+// Handle copy-on-write page fault
+int
+cowhandler(pagetable_t pagetable, uint64 va)
+{
+  if(va >= MAXVA)
+    return -1;
+  
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0)
+    return -1;
+  if((*pte & PTE_V) == 0)
+    return -1;
+  if((*pte & PTE_U) == 0)
+    return -1;
+  
+  uint64 pa = PTE2PA(*pte);
+  uint flags = PTE_FLAGS(*pte);
+  
+  // Check if this is actually a COW page
+  if((flags & PTE_COW) == 0)
+    return -1;
+  
+  int ref = kgetref((void*)pa);
+  
+  if(ref == 1) {
+    // Only one reference - just add write permission
+    *pte = PA2PTE(pa) | (flags & ~PTE_COW) | PTE_W;
+  } else if(ref > 1) {
+    // Multiple references - allocate new page and copy
+    char *mem = kalloc();
+    if(mem == 0)
+      return -1;
+    
+    memmove(mem, (char*)pa, PGSIZE);
+    
+    // Update PTE to point to new page with write permission
+    *pte = PA2PTE((uint64)mem) | (flags & ~PTE_COW) | PTE_W;
+    
+    // Decrement old page's reference count
+    kfree((void*)pa);
+  } else {
+    return -1;
+  }
+  
+  return 0;
 }
