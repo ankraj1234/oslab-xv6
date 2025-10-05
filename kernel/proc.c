@@ -173,6 +173,16 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  p->num_pagefaults = 0;
+  p->num_swapins = 0;
+  p->num_swapouts = 0;
+  p->swapfile = 0;
+  p->num_swapped = 0;
+  for(int i = 0; i < MAXSWAPBLOCKS; i++)
+    p->swapblocks[i] = 0;
+  for(int i = 0; i < MAXSWAPBLOCKS; i++)
+    p->swapped_pages[i] = 0;
+
   return p;
 }
 
@@ -195,6 +205,9 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  mru_remove_proc(p);
+  p->swapfile = 0;
+  p->num_swapped = 0;
   p->state = UNUSED;
 }
 
@@ -875,4 +888,25 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+
+int
+getpagestat(int pid, struct pagestat *st)
+{
+  struct proc *p;
+  
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->pid == pid){
+      st->num_pagefaults = p->num_pagefaults;
+      st->num_swapins = p->num_swapins;
+      st->num_swapouts = p->num_swapouts;
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+  
+  return -1;
 }

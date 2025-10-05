@@ -26,3 +26,5 @@
 #define SYS_set_tickets 25
 #define SYS_get_tickets 26
 #define SYS_get_ticks  27
+#define SYS_getpagestat 28
+#define SYS_dumpmru     29

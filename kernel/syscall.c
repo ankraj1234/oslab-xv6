@@ -107,6 +107,8 @@ extern uint64 sys_get_priority(void);
 extern uint64 sys_set_tickets(void);
 extern uint64 sys_get_tickets(void);
 extern uint64 sys_get_ticks(void);
+extern uint64 sys_getpagestat(void);
+extern uint64 sys_dumpmru(void);
 
 // An array mapping syscall numbers from syscall.h
 // to the function that handles the system call.
@@ -138,6 +140,8 @@ static uint64 (*syscalls[])(void) = {
 [SYS_set_tickets] sys_set_tickets,
 [SYS_get_tickets] sys_get_tickets,
 [SYS_get_ticks] sys_get_ticks,
+[SYS_getpagestat] sys_getpagestat,
+[SYS_dumpmru]     sys_dumpmru,
 };
 
 void

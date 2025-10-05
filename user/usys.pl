@@ -42,3 +42,5 @@ entry("get_priority");
 entry("set_tickets");
 entry("get_tickets");
 entry("get_ticks");
+entry("getpagestat");
+entry("dumpmru");

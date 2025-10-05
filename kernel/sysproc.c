@@ -37,16 +37,41 @@ sys_wait(void)
   return wait(p);
 }
 
+// uint64
+// sys_sbrk(void)
+// {
+//   uint64 addr;
+//   int n;
+
+//   argint(0, &n);
+//   addr = myproc()->sz;
+//   if(growproc(n) < 0)
+//     return -1;
+//   return addr;
+// }
+
 uint64
 sys_sbrk(void)
 {
-  uint64 addr;
+  int addr;
   int n;
+  struct proc *p = myproc();
 
   argint(0, &n);
-  addr = myproc()->sz;
-  if(growproc(n) < 0)
-    return -1;
+  
+  addr = p->sz;
+  
+  if(n > 0) {
+    // Growing - should call allocuvm_withswap
+    if(allocuvm_withswap(p->pagetable, p->sz, p->sz + n) == 0)
+      return -1;
+  } else if(n < 0) {
+    // Shrinking
+    if(deallocuvm(p->pagetable, p->sz, p->sz + n) == 0)
+      return -1;
+  }
+  
+  p->sz += n;
   return addr;
 }
 
@@ -223,4 +248,31 @@ sys_get_ticks(void)
     release(&p->lock);
   }
   return -1;
+}
+
+uint64
+sys_getpagestat(void)
+{
+  int pid;
+  uint64 st_addr;
+  struct pagestat st;
+  
+  argint(0, &pid);
+  argaddr(1, &st_addr);
+  
+  if(getpagestat(pid, &st) < 0)
+    return -1;
+  
+  struct proc *p = myproc();
+  if(copyout(p->pagetable, st_addr, (char*)&st, sizeof(st)) < 0)
+    return -1;
+  
+  return 0;
+}
+
+uint64
+sys_dumpmru(void)
+{
+  dumpmru_internal();
+  return 0;
 }

@@ -81,6 +81,12 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct pagestat {
+  int num_pagefaults;
+  int num_swapins;
+  int num_swapouts;
+};
+
 // Per-process state
 struct proc {
   struct spinlock lock;
@@ -108,6 +114,21 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  int num_pagefaults;          // Page fault count
+  int num_swapins;             // Swap-in count
+  int num_swapouts;            // Swap-out count
+  struct file *swapfile;       // Swap file for this process
+  int swapblocks[MAXSWAPBLOCKS];  // Track which swap blocks are used
+  uint64 swapped_pages[MAXSWAPBLOCKS];  // Virtual addresses of swapped pages
+  int num_swapped;             // Number of swapped pages
+};
+
+struct mru_node {
+  struct proc *p;
+  uint64 va;  // Virtual address of page
+  struct mru_node *next;
+  struct mru_node *prev;
 };
 
 struct uproc {

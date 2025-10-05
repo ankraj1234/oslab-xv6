@@ -184,10 +184,14 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 npages, int do_free)
     panic("uvmunmap: not aligned");
 
   for(a = va; a < va + npages*PGSIZE; a += PGSIZE){
-    if((pte = walk(pagetable, a, 0)) == 0)
-      panic("uvmunmap: walk");
-    if((*pte & PTE_V) == 0)
-      panic("uvmunmap: not mapped");
+    if((pte = walk(pagetable, a, 0)) == 0){
+      // panic("uvmunmap: walk");
+      continue;
+    }
+    if((*pte & PTE_V) == 0){
+      // panic("uvmunmap: not mapped");
+      continue;
+    }
     if(PTE_FLAGS(*pte) == PTE_V)
       panic("uvmunmap: not a leaf");
     if(do_free){
@@ -339,34 +343,77 @@ uvmfree(pagetable_t pagetable, uint64 sz)
 //   return -1;
 // }
 
+// int
+// uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
+// {
+//   pte_t *pte;
+//   uint64 pa, i;
+//   uint flags;
+
+//   for(i = 0; i < sz; i += PGSIZE){
+//     if((pte = walk(old, i, 0)) == 0)
+//       panic("uvmcopy: pte should exist");
+//     if((*pte & PTE_V) == 0)
+//       panic("uvmcopy: page not present");
+    
+//     pa = PTE2PA(*pte);
+//     flags = PTE_FLAGS(*pte);
+    
+//     // If page is writable, make it read-only and mark as COW
+//     if(flags & PTE_W) {
+//       flags &= ~PTE_W;  // Clear write flag
+//       flags |= PTE_COW; // Mark as COW (we'll define this)
+//       *pte = PA2PTE(pa) | flags; // Update parent's PTE
+//     }
+    
+//     // Map the same physical page in child's page table
+//     if(mappages(new, i, PGSIZE, pa, flags) != 0){
+//       goto err;
+//     }
+    
+//     // Increment reference count for shared page
+//     krefpage((void*)pa);
+//   }
+//   return 0;
+
+//  err:
+//   uvmunmap(new, 0, i / PGSIZE, 1);
+//   return -1;
+// }
+
 int
 uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
 {
   pte_t *pte;
   uint64 pa, i;
   uint flags;
+  struct proc *p = myproc();
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
-    if((*pte & PTE_V) == 0)
-      panic("uvmcopy: page not present");
-    
+
+    // If page is swapped out, swap it in
+    if((*pte & PTE_V) == 0){
+      if(swapin(p, i) < 0)
+        panic("uvmcopy: swapin failed");
+    }
+
     pa = PTE2PA(*pte);
     flags = PTE_FLAGS(*pte);
-    
-    // If page is writable, make it read-only and mark as COW
-    if(flags & PTE_W) {
-      flags &= ~PTE_W;  // Clear write flag
-      flags |= PTE_COW; // Mark as COW (we'll define this)
-      *pte = PA2PTE(pa) | flags; // Update parent's PTE
+
+    // Copy-On-Write handling
+    if(flags & PTE_W){
+      flags &= ~PTE_W;
+      flags |= PTE_COW;
+      *pte = PA2PTE(pa) | flags;  // Update parent's PTE
     }
-    
-    // Map the same physical page in child's page table
+
+    // Map in child
     if(mappages(new, i, PGSIZE, pa, flags) != 0){
       goto err;
     }
-    
+
     // Increment reference count for shared page
     krefpage((void*)pa);
   }
@@ -376,6 +423,7 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   uvmunmap(new, 0, i / PGSIZE, 1);
   return -1;
 }
+
 
 
 // mark a PTE invalid for user access.
@@ -404,6 +452,11 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     va0 = PGROUNDDOWN(dstva);
     if(va0 >= MAXVA)
       return -1;
+
+    // Track page access
+    if(myproc())
+      mru_access(myproc(), va0);
+ 
     pte = walk(pagetable, va0, 0);
     // if(pte == 0 || (*pte & PTE_V) == 0 || (*pte & PTE_U) == 0 ||
     //    (*pte & PTE_W) == 0)
@@ -446,6 +499,11 @@ copyin(pagetable_t pagetable, char *dst, uint64 srcva, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(srcva);
+
+    // Track page access
+    if(myproc())
+      mru_access(myproc(), va0);
+
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
@@ -551,3 +609,77 @@ cowhandler(pagetable_t pagetable, uint64 va)
   
   return 0;
 }
+
+uint64
+allocuvm_withswap(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+    char *mem;
+    uint64 a;
+
+    if(newsz < oldsz)
+        return oldsz;
+
+    oldsz = PGROUNDUP(oldsz);
+
+    for(a = oldsz; a < newsz; a += PGSIZE){
+        mem = kalloc();
+        while(mem == 0){
+            // Out of memory, try swapping out a page
+            if(swapout() < 0) {
+                deallocuvm(pagetable, a, oldsz);
+                return 0;
+            }
+            mem = kalloc();
+        }
+
+        memset(mem, 0, PGSIZE);
+
+        if(mappages(pagetable, a, PGSIZE, (uint64)mem, PTE_R|PTE_W|PTE_X|PTE_U) != 0){
+            kfree(mem);
+            deallocuvm(pagetable, a, oldsz);
+            return 0;
+        }
+
+        // Add to MRU list
+        mru_access(myproc(), a);
+    }
+
+    return newsz;
+}
+
+uint64
+deallocuvm(pagetable_t pagetable, uint64 oldsz, uint64 newsz)
+{
+  if(newsz >= oldsz)
+    return oldsz;
+
+  uint64 a;
+  pte_t *pte;
+  
+  // Round up to page boundaries
+  oldsz = PGROUNDUP(oldsz);
+  newsz = PGROUNDUP(newsz);
+  
+  // Free pages from newsz to oldsz
+  for(a = newsz; a < oldsz; a += PGSIZE){
+    pte = walk(pagetable, a, 0);
+    if(pte == 0)
+      continue;
+    
+    if((*pte & PTE_V) == 0)
+      continue;
+    
+    // Get physical address and free the page
+    uint64 pa = PTE2PA(*pte);
+    kfree((void*)pa);
+    
+    // Clear the PTE
+    *pte = 0;
+    
+    // Remove from MRU list
+    mru_remove(myproc(), a);
+  }
+  
+  return newsz;
+}
+

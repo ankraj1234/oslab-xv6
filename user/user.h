@@ -1,5 +1,11 @@
 struct stat;
 
+struct pagestat {
+  int num_pagefaults;
+  int num_swapins;
+  int num_swapouts;
+};
+
 // system calls
 int fork(void);
 int exit(int) __attribute__((noreturn));
@@ -50,6 +56,7 @@ struct uproc {
   char name[16];
 };
 
+// created system calls
 int getprocsinfo(struct uproc *);
 
 int set_priority(int);
@@ -60,3 +67,6 @@ int set_tickets(int agr1, ...);
 int get_tickets(void);
 
 int get_ticks(int pid);
+
+int getpagestat(int, struct pagestat*);
+int dumpmru(void);
